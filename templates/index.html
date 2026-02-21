@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetal CHD Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-section {
+            border: 2px dashed #007cba;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #005a87; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .results { display: none; margin-top: 30px; }
+        .image-container { margin: 20px 0; text-align: center; }
+        .image-container img { max-width: 100%; max-height: 300px; border: 1px solid #ddd; border-radius: 5px; }
+        .result-item { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007cba; }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007cba;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chd-detected { color: #e74c3c; font-weight: bold; }
+        .chd-normal { color: #27ae60; font-weight: bold; }
+        .severity-mild { color: #f39c12; }
+        .severity-moderate { color: #e67e22; }
+        .severity-severe { color: #e74c3c; }
+        .probability-bar {
+            background: #ecf0f1;
+            border-radius: 10px;
+            height: 20px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .test-buttons {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .info-box {
+            background: #e8f4fc;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧬 Fetal CHD Detection System</h1>
+        <p>Upload a fetal ultrasound image for Congenital Heart Disease analysis</p>
+
+        <div class="info-box">
+            <strong>💡 How it works:</strong> This system analyzes image characteristics like brightness and contrast to provide realistic CHD risk assessments. Most normal images will show low CHD probability.
+        </div>
+
+        <div class="upload-section">
+            <h3>Upload Your Image</h3>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()">Choose Image</button>
+            <div id="fileName" style="margin: 10px 0; font-weight: bold;"></div>
+            <button id="analyzeBtn" onclick="analyzeImage()" disabled>Analyze Image</button>
+        </div>
+
+        <div id="errorMessage" style="color: red; display: none; padding: 10px; background: #ffeaea; border-radius: 5px;"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analyzing fetal ultrasound image...</p>
+        </div>
+
+        <div class="results" id="resultsSection">
+            <h2>🔍 Analysis Results</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="result-item">
+                    <h2>📷 Original Image</h2>
+                    <div class="image-container">
+                        <img id="originalImage" src="" alt="Original Ultrasound">
+                    </div>
+                </div>
+
+                <div class="result-item">
+                    <h2>🎯 Heart Segmentation</h2>
+                    <div class="image-container">
+                        <img id="segmentationImage" src="" alt="Heart Structure Segmentation">
+                    </div>
+                    <p style="text-align: center; color: #666; font-size: 14px;">
+                        Green areas show detected heart structures
+                    </p>
+                </div>
+            </div>
+
+            <div class="result-item">
+                <h2>CHD Detection</h2>
+                <div id="chdResult" style="font-size: 24px; margin: 10px 0;"></div>
+                <div style="margin: 15px 0;">
+                    <strong>Confidence Level:</strong> <span id="chdConfidence">0%</span>
+                    <div class="probability-bar">
+                        <div id="chdProbabilityBar" class="probability-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-item" id="severitySection" style="display: none;">
+                <h4>📊 Severity Assessment</h4>
+                <div id="severityResult" style="font-size: 20px; margin: 10px 0;"></div>
+                <div id="severityProbabilities"></div>
+            </div>
+
+            <div class="result-item" id="imageInfoSection">
+                <h2>📐 Image Analysis</h2>
+                <div id="imageInfo"></div>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="resetAnalysis()">🔄 Analyze Another Image</button>
+            </div>
+        </div>
+    </div>
+<script>
+        let currentFile = null;
+
+        // Test image functions
+        function useSampleImage(type) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 400;
+            canvas.height = 300;
+
+            if (type === 'dark') {
+                // Create a dark image (higher CHD probability)
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Add some ultrasound-like patterns
+                ctx.fillStyle = '#34495e';
+                ctx.beginPath();
+                ctx.ellipse(200, 150, 80, 60, 0, 0, 2 * Math.PI);
+                ctx.fill();
+            } else if (type === 'bright') {
+                // Create a bright image (medium CHD probability)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Add ultrasound-like patterns
+                ctx.fillStyle = '#f8f9fa';
+                ctx.beginPath();
+                ctx.ellipse(200, 150, 70, 50, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = '#e9ecef';
+                ctx.beginPath();
+                ctx.ellipse(170, 150, 25, 35, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(230, 150, 25, 35, 0, 0, 2 * Math.PI);
+                ctx.fill();
+            } else {
+                // Create a normal image (lower CHD probability)
+                ctx.fillStyle = '#ecf0f1';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Add normal ultrasound patterns
+                ctx.fillStyle = '#bdc3c7';
+                ctx.beginPath();
+                ctx.ellipse(200, 150, 60, 45, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = '#a0a6ab';
+                ctx.beginPath();
+                ctx.ellipse(180, 150, 18, 25, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(220, 150, 18, 25, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                // Add vessels
+                ctx.beginPath();
+                ctx.ellipse(200, 90, 12, 25, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(200, 210, 12, 25, 0, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            canvas.toBlob(function(blob) {
+                currentFile = new File([blob], `sample_${type}.png`, { type: 'image/png' });
+                document.getElementById('fileName').textContent = `Sample ${type} image`;
+                document.getElementById('analyzeBtn').disabled = false;
+
+                document.getElementById('originalImage').src = canvas.toDataURL();
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('errorMessage').style.display = 'none';
+            });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                currentFile = file;
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('analyzeBtn').disabled = false;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('originalImage').src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('errorMessage').style.display = 'none';
+            }
+        });
+
+        function analyzeImage() {
+            if (!currentFile) return;
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                displayResults(data);
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                showError('Analysis failed: ' + error.message);
+                document.getElementById('analyzeBtn').disabled = false;
+            });
+        }
+
+        function displayResults(data) {
+            // Update CHD detection
+            const chdResult = document.getElementById('chdResult');
+            const chdConfidence = document.getElementById('chdConfidence');
+            const chdProbabilityBar = document.getElementById('chdProbabilityBar');
+
+            const confidencePercent = (data.chd_confidence * 100).toFixed(1);
+
+            if (data.chd_detected) {
+                chdResult.innerHTML = '✅ <span class="chd-detected">CHD DETECTED</span>';
+                chdResult.className = 'chd-detected';
+            } else {
+                chdResult.innerHTML = '❌ <span class="chd-normal">NO CHD DETECTED</span>';
+                chdResult.className = 'chd-normal';
+            }
+
+            chdConfidence.textContent = confidencePercent + '%';
+            chdProbabilityBar.style.width = confidencePercent + '%';
+
+            // Update images
+            if (data.original_image) {
+                document.getElementById('originalImage').src = data.original_image;
+            }
+            if (data.segmentation_overlay) {
+                document.getElementById('segmentationImage').src = data.segmentation_overlay;
+            }
+
+            // Update severity section
+            const severitySection = document.getElementById('severitySection');
+            if (data.severity && data.chd_detected) {
+                severitySection.style.display = 'block';
+                const severityResult = document.getElementById('severityResult');
+                severityResult.innerHTML = `Severity Level: <span class="severity-${data.severity.level.toLowerCase()}">${data.severity.level}</span>`;
+
+                // Create probability bars for severity
+                let probsHtml = '<div style="margin-top: 15px;">';
+                for (const [level, prob] of Object.entries(data.severity.probabilities)) {
+                    const percent = (prob * 100).toFixed(1);
+                    probsHtml += `
+                        <div style="margin: 10px 0;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>${level}:</span>
+                                <span>${percent}%</span>
+                            </div>
+                            <div class="probability-bar">
+                                <div class="probability-fill" style="width: ${percent}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                probsHtml += '</div>';
+                document.getElementById('severityProbabilities').innerHTML = probsHtml;
+            } else {
+                severitySection.style.display = 'none';
+            }
+
+            // Update image info
+            const imageInfoSection = document.getElementById('imageInfoSection');
+            if (data.image_analysis) {
+                imageInfoSection.style.display = 'block';
+                let infoHtml = `
+                    <div><strong>Brightness:</strong> ${data.image_analysis.brightness.toFixed(1)}</div>
+                    <div><strong>Contrast:</strong> ${data.image_analysis.contrast.toFixed(1)}</div>
+                    <div><strong>Image Size:</strong> ${data.image_analysis.size}</div>
+                `;
+
+                // Add analysis reason if available
+                if (data.analysis_reason) {
+                    infoHtml += `<div style="margin-top: 10px; padding: 10px; background: #e8f4fc; border-radius: 5px;">
+                        <strong>Analysis Note:</strong> ${data.analysis_reason}
+                    </div>`;
+                }
+
+                document.getElementById('imageInfo').innerHTML = infoHtml;
+            }
+
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+
+        function resetAnalysis() {
+            currentFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileName').textContent = '';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Fetal CHD Detection System loaded');
+            document.getElementById('imageInfoSection').style.display = 'none';
+        });
+    </script>
+
+</body>
+</html>
